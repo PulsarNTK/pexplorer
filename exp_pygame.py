@@ -17,17 +17,17 @@ class exp():
         self.clock = pygame.time.Clock()
         self.font = pygame.font.SysFont('Monofur', 16)
         self.err_font = pygame.font.SysFont('Consolas', 48)
+        self.nav_img = []
+        self.nav_img.append(pygame.image.load("backward.png"))
+        self.nav_img.append(pygame.image.load("forward.png"))
+        self.nav_img.append(pygame.image.load("up.png"))
         self.scroll_mouse = False
+        self.is_run = True
         
         self.nav_x = 0
         self.nav_y = 0
         self.nav_w = w
         self.nav_h = 64
-        self.nav_img = []
-        self.nav_img.append(pygame.image.load("backward.png"))
-        self.nav_img.append(pygame.image.load("forward.png"))
-        self.nav_img.append(pygame.image.load("up.png"))
-        
         self.exp_x = 0
         self.exp_y = 64
         self.exp_w = w
@@ -36,90 +36,41 @@ class exp():
         self.exp_b_history = []
         self.exp_f_history = []
         
+        self.evt_QUIT = []
+        self.evt_MOUSEBUTTONDOWN = []
+        self.evt_MOUSEMOTION = []
+        self.evt_VIDEORESIZE = []
+        
         self.icons = {}
-        
-        
         for i in os.listdir("ico"):
             f, ext = os.path.splitext(i)
             if f != "" and ext != "" and f != "." and ext != ".":
                 self.icons["." + f] = pygame.image.load("ico/" + i)
         self.icons["folder"] = pygame.image.load("folder" + ".bmp")
-        
         self.m_llf = time.time()
         self.path = "C:/"
         self.list_cons("C:/")
         self.draw()
-        is_run = True
+        self.default_evts()
+        self.loop()
         
-        while is_run:
+    def loop(self):
+        while self.is_run:
             self.clock.tick(60)
+            pygame.event.pump()
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
-                    is_run = False
-                elif event.type == pygame.MOUSEBUTTONDOWN:
-                    if event.button == 1:
-                        x,y = event.pos
-                        if y > self.exp_y:
-                            if x > self.exp_w - 30:
-                                self.scroll_mouse = True
-                            else:
-                                if (self.m_llf+0.8) > time.time():
-                                    self.m_llf = 0
-                                    self.exp_sel(y)
-                                else:
-                                    self.m_llf = time.time()
-                        elif self.nav_y < y < self.nav_h + self.nav_y:
-                            if x < 54:
-                                self.nav_backward()
-                            elif x < 100:
-                                self.nav_forward()
-                            elif x < 140:
-                                self.nav_up()
-                            else:
-                                if self.spltpath_coord[0][0][0] < x < self.spltpath_coord[-1][1][0] and self.spltpath_coord[0][0][1] < y < self.spltpath_coord[-1][1][1]:
-                                    for idx, coord in enumerate(self.spltpath_coord):
-                                        if coord[0][0] < x < coord[1][0] and coord[0][1] < y < coord[1][1]:
-                                            self.list_cons(self.nav_bar_pathlist[idx])
-                    if event.button == 3:
-                        x,y = event.pos
-                        if self.spltpath_coord[0][0][0] < x < self.spltpath_coord[-1][1][0] and self.spltpath_coord[0][0][1] < y < self.spltpath_coord[-1][1][1]:
-                                for idx, coord in enumerate(self.spltpath_coord):
-                                    if coord[0][0] < x < coord[1][0] and coord[0][1] < y < coord[1][1]:
-                                        self.list_cons(self.nav_bar_pathlist[idx])
-                    else:
-                        if event.button == 4:
-                            if self.scrl > 0:
-                                self.scrl -= 2
-                                self.scrol.set_pos(self.scrl*24)
-                        elif event.button == 5:
-                            if self.scrl < (len(self.lsdir)-self.exp_len):
-                                self.scrl += 2
-                                self.scrol.set_pos(self.scrl*24)
-                        self.draw()
-                elif event.type == pygame.MOUSEMOTION and self.scroll_mouse:
-                    if pygame.mouse.get_pressed()[0] == 1:
-                        x,y = event.rel
-                        if (self.scrol.rated_pos + (y*self.scrol.rate) + self.scrol.scroll_height) <= self.scrol.h  and (self.scrol.pos + (y*self.scrol.rate)) >= 0:
-                            self.scrol.set_pos(self.scrol.pos + (y*self.scrol.rate))
-                            self.scrl = int(self.scrol.pos / 24)
-                        self.draw()
-                    else:
-                        self.scroll_mouse = False
-                elif event.type == pygame.VIDEORESIZE:
-                    self.display = pygame.display.set_mode((event.w, event.h), self.flags_d)
-                    w = event.w
-                    h = event.h
-                    self.nav_x = 0
-                    self.nav_y = 0
-                    self.nav_w = w
-                    self.nav_h = 64
-                    self.exp_x = 0
-                    self.exp_y = 64
-                    self.exp_w = w
-                    self.exp_h = h-64
-                    self.exp_len = self.exp_h / 24
-                    self.list_cons(self.path)
-                    self.draw()
+                    for func in self.evt_QUIT:
+                        func(event)
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    for func in self.evt_MOUSEBUTTONDOWN:
+                        func(event)
+                if event.type == pygame.MOUSEMOTION:
+                    for func in self.evt_MOUSEMOTION:
+                        func(event)
+                if event.type == pygame.VIDEORESIZE:
+                    for func in self.evt_VIDEORESIZE:
+                        func(event)
     
     def list_cons(self, path, navcontrol=False):
         oldpath = self.path
@@ -212,13 +163,6 @@ class exp():
             self.scrl = 0
             return True
     
-    def exp_sel(self, y):
-        selelected = self.path + self.lsdir[((y-self.exp_y)//24)+self.scrl] + "/"
-        # self.exp_b_history.append(self.path)
-        self.list_cons(selelected)
-        # if self.exp_f_history != []:
-        #     self.exp_f_history = []
-    
     def nav_backward(self):
         if self.exp_b_history != []:
             self.exp_f_history.append(self.path)
@@ -240,7 +184,168 @@ class exp():
         self.display.blit(self.err_font.render(msg, False, (128, 128, 128)),(self.exp_x+48,self.exp_y+48))
         pygame.display.update()
     
-
+    def tooltip(self, x, y, list_b, list_t,):
+        pygame.draw.rect(self.display, (92,92,92), pygame.Rect(x, y, 400, 400))
+        
+        for idx, t in enumerate(list_b):
+            self.display.blit(self.font.render(t, False, (128, 128, 128)),(x+20,y+(idx*24)))
+        pygame.display.update()
+        while True:
+            for event in pygame.event.get():
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    if event.button == 1:
+                        print("click")
+        print(x,y)
+    
+    def loop_nav(self,event,*func):
+        while self.is_run:
+            self.clock.tick(60)
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.is_run = False
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    x,y = event.pos
+                    if self.nav_y < y < self.nav_h + self.nav_y:
+                            if x < 54:
+                                self.nav_backward()
+                            elif x < 100:
+                                self.nav_forward()
+                            elif x < 140:
+                                self.nav_up()
+                            else:
+                                if self.spltpath_coord[0][0][0] < x < self.spltpath_coord[-1][1][0] and self.spltpath_coord[0][0][1] < y < self.spltpath_coord[-1][1][1]:
+                                    for idx, coord in enumerate(self.spltpath_coord):
+                                        if coord[0][0] < x < coord[1][0] and coord[0][1] < y < coord[1][1]:
+                                            self.list_cons(self.nav_bar_pathlist[idx])
+                    if event.button == 3:
+                        x,y = event.pos
+                        if self.spltpath_coord[0][0][0] < x < self.spltpath_coord[-1][1][0] and self.spltpath_coord[0][0][1] < y < self.spltpath_coord[-1][1][1]:
+                                for idx, coord in enumerate(self.spltpath_coord):
+                                    if coord[0][0] < x < coord[1][0] and coord[0][1] < y < coord[1][1]:
+                                        self.list_cons(self.nav_bar_pathlist[idx])
+                    else:
+                        if event.button == 4:
+                            if self.scrl > 0:
+                                self.scrl -= 2
+                                self.scrol.set_pos(self.scrl*24)
+                                self.draw()
+                        elif event.button == 5:
+                            if self.scrl < (len(self.lsdir)-self.exp_len):
+                                self.scrl += 2
+                                self.scrol.set_pos(self.scrl*24)
+                                self.draw()
+                        
+                        
+                elif event.type == pygame.MOUSEMOTION and self.scroll_mouse:
+                    if pygame.mouse.get_pressed()[0] == 1:
+                        x,y = event.rel
+                        if (self.scrol.rated_pos + (y*self.scrol.rate) + self.scrol.scroll_height) <= self.scrol.h  and (self.scrol.pos + (y*self.scrol.rate)) >= 0:
+                            self.scrol.set_pos(self.scrol.pos + (y*self.scrol.rate))
+                            self.scrl = int(self.scrol.pos / 24)
+                        self.draw()
+                    else:
+                        self.scroll_mouse = False
+                        
+                        
+                elif event.type == pygame.VIDEORESIZE:
+                    self.display = pygame.display.set_mode((event.w, event.h), self.flags_d)
+                    w = event.w
+                    h = event.h
+                    self.nav_x = 0
+                    self.nav_y = 0
+                    self.nav_w = w
+                    self.nav_h = 64
+                    self.exp_x = 0
+                    self.exp_y = 64
+                    self.exp_w = w
+                    self.exp_h = h-64
+                    self.exp_len = self.exp_h / 24
+                    self.list_cons(self.path)
+                    self.draw()
+    
+    def default_evts(self):
+        self.evt_QUIT = [self.evt_quit]
+        self.evt_MOUSEBUTTONDOWN = [self.evt_select_exp]
+        self.evt_MOUSEMOTION = [self.evt_scroll_exp]
+        self.evt_VIDEORESIZE = [self.evt_resize]
+    
+    # <----/ event /---->
+    
+    def evt_select_exp(self, event):
+        if event.button == 1:
+            x,y = event.pos
+            if y > self.exp_y:
+                if x > self.exp_w - 30:
+                    self.scroll_mouse = True
+                else:
+                    if (self.m_llf+0.8) > time.time():
+                        self.m_llf = 0
+                        selelected = self.path + self.lsdir[((y-self.exp_y)//24)+self.scrl] + "/"
+                        self.list_cons(selelected)
+                    else:
+                        self.m_llf = time.time()
+            elif self.nav_y < y < self.nav_h + self.nav_y:
+                if x < 54:
+                    self.nav_backward()
+                elif x < 100:
+                    self.nav_forward()
+                elif x < 140:
+                    self.nav_up()
+                else:
+                    if self.spltpath_coord[0][0][0] < x < self.spltpath_coord[-1][1][0] and self.spltpath_coord[0][0][1] < y < self.spltpath_coord[-1][1][1]:
+                        for idx, coord in enumerate(self.spltpath_coord):
+                            if coord[0][0] < x < coord[1][0] and coord[0][1] < y < coord[1][1]:
+                                self.list_cons(self.nav_bar_pathlist[idx])
+        elif event.button == 2:
+            x,y = event.pos
+            self.tooltip(x,y,("bottom 1", "bottom 2"), ("top 1", "top 2"))
+        if event.button == 3:
+            x,y = event.pos
+            if self.spltpath_coord[0][0][0] < x < self.spltpath_coord[-1][1][0] and self.spltpath_coord[0][0][1] < y < self.spltpath_coord[-1][1][1]:
+                    for idx, coord in enumerate(self.spltpath_coord):
+                        if coord[0][0] < x < coord[1][0] and coord[0][1] < y < coord[1][1]:
+                            self.list_cons(self.nav_bar_pathlist[idx])
+        else:
+            if event.button == 4:
+                if self.scrl > 0:
+                    self.scrl -= 2
+                    self.scrol.set_pos(self.scrl*24)
+                    self.draw()
+            elif event.button == 5:
+                if self.scrl < (len(self.lsdir)-self.exp_len):
+                    self.scrl += 2
+                    self.scrol.set_pos(self.scrl*24)
+                    self.draw()
+    
+    def evt_resize(self, event):
+        self.display = pygame.display.set_mode((event.w, event.h), self.flags_d)
+        w = event.w
+        h = event.h
+        self.nav_x = 0
+        self.nav_y = 0
+        self.nav_w = w
+        self.nav_h = 64
+        self.exp_x = 0
+        self.exp_y = 64
+        self.exp_w = w
+        self.exp_h = h-64
+        self.exp_len = self.exp_h / 24
+        self.list_cons(self.path)
+        self.draw()
+    
+    def evt_scroll_exp(self, event):
+        if self.scroll_mouse:
+            if pygame.mouse.get_pressed()[0] == 1:
+                x,y = event.rel
+                if (self.scrol.rated_pos + (y*self.scrol.rate) + self.scrol.scroll_height) <= self.scrol.h  and (self.scrol.pos + (y*self.scrol.rate)) >= 0:
+                    self.scrol.set_pos(self.scrol.pos + (y*self.scrol.rate))
+                    self.scrl = int(self.scrol.pos / 24)
+                self.draw()
+            else:
+                self.scroll_mouse = False
+    
+    def evt_quit(self, event):
+        self.is_run = False
 
 test = exp(1024, 720)
 quit()
